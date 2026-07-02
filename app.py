@@ -1,38 +1,46 @@
 import streamlit as st
+import os
 from google import genai
-from google.genai import types
 
-st.set_page_config(page_title="My AI Chatbot", page_icon="🤖")
+st.set_page_config(page_title="Mera AI Chatbot", page_icon="🤖")
 st.title("🤖 Mera AI Chatbot")
 
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
-else:
+# Fetch API Key safely from Streamlit Secrets
+api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+
+if not api_key:
     st.error("Please configure GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-client = genai.Client(api_key=api_key)
-
-config = types.GenerateContentConfig(
-    system_instruction="You are a helpful AI assistant. Always reply in friendly Hinglish.",
-    temperature=0.7
-)
-
-if "chat" not in st.session_state:
-    st.session_state.chat = client.chats.create(model="gemini-3.5-flash", config=config)
+# Initialize Chat History
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["text"])
+# Display previous chat messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-user_input = st.chat_input("Kuch bhi pucho...")
-if user_input:
-    st.chat_message("user").write(user_input)
-    st.session_state.messages.append({"role": "user", "text": user_input})
-    
-    response = st.session_state.chat.send_message(user_input)
-    
-    st.chat_message("assistant").write(response.text)
-    st.session_state.messages.append({"role": "assistant", "text": response.text})
+# User Input
+if user_query := st.chat_input("Kuch bhi pucho..."):
+    # Display user message
+    with st.chat_message("user"):
+        st.write(user_query)
+    st.session_state.messages.append({"role": "user", "content": user_query})
+
+    # Generate response from Gemini using fresh client instance every time
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        with st.chat_message("assistant"):
+            with st.spinner("Soch raha hoon..."):
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=user_query
+                )
+                st.write(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+    except Exception as e:
+        st.error(f"Error: {e}")
+
   
